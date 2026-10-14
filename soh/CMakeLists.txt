@@ -584,15 +584,17 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
             >
             $<$<COMPILE_LANGUAGE:CXX>:-fpermissive>
             $<$<COMPILE_LANGUAGE:CXX>:-Wno-deprecated-enum-enum-conversion>
-            -pthread
+            $<$<NOT:$<BOOL:${EMSCRIPTEN}>>:-pthread>
         ${CPU_OPTION}
         )
 
-        target_link_options(${PROJECT_NAME} PRIVATE
-            -pthread
-                #-fsanitize=address
-            -Wl,-export-dynamic
-        )
+        if(NOT EMSCRIPTEN)
+            target_link_options(${PROJECT_NAME} PRIVATE
+                -pthread
+                    #-fsanitize=address
+                -Wl,-export-dynamic
+            )
+        endif()
     endif()
 endif()
 ################################################################################
@@ -685,6 +687,17 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
     target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE
         ${DEVKITPRO}/portlibs/wiiu/include/
     )
+elseif(EMSCRIPTEN)
+    find_library(MATH_LIBRARY m)
+    set(ADDITIONAL_LIBRARY_DEPENDENCIES
+        "libultraship;"
+        "torch;"
+        SDL2::SDL2
+        ${CMAKE_DL_LIBS}
+    )
+    if(MATH_LIBRARY)
+        list(APPEND ADDITIONAL_LIBRARY_DEPENDENCIES ${MATH_LIBRARY})
+    endif()
 else()
     find_package(SDL2)
     set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -714,7 +727,9 @@ else()
     endif()
 endif()
 
-find_package(libzip REQUIRED)
+if(NOT TARGET libzip::zip)
+    find_package(libzip REQUIRED)
+endif()
 list(APPEND ADDITIONAL_LIBRARY_DEPENDENCIES libzip::zip)
 
 if(USE_ASAN)
@@ -743,6 +758,38 @@ if(USE_ASAN)
     endif()
 endif()
 
+
+if(EMSCRIPTEN)
+    target_link_options(soh PRIVATE
+        "SHELL:--preload-file ${CMAKE_BINARY_DIR}/preload@/"
+        "SHELL:--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
+    )
+    set_property(TARGET soh APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html)
+
+    # These files contain giant static-data init functions (thousands of CustomMessage/std::string temporaries).
+    # With Emscripten's JS-based exception handling every call becomes an invoke_* and every temporary stays live for
+    # the cleanup pads, producing wasm functions with 7k-23k locals. V8's baseline compiler (Liftoff) needs 4-6+ GB to
+    # compile each of them, which crashes the tab with "out of memory" the first time Rando::Context::InitStaticData()
+    # runs. None of them throw or catch, so compile them without exception cleanup (calls are treated as nounwind).
+    # The hint tables are still too big after that because of the inlined CustomMessage/std::string constructors, so
+    # also disable inlining there (it's run-once init code).
+    set_source_files_properties(
+        soh/Enhancements/randomizer/3drando/hint_list.cpp
+        soh/Enhancements/randomizer/3drando/hint_list/hint_list_item.cpp
+        soh/Enhancements/randomizer/3drando/hint_list/hint_list_exclude_overworld.cpp
+        soh/Enhancements/randomizer/3drando/hint_list/hint_list_exclude_dungeon.cpp
+        PROPERTIES COMPILE_OPTIONS "-fignore-exceptions;-fno-inline"
+    )
+    set_source_files_properties(
+        soh/Enhancements/randomizer/Traps.cpp
+        soh/Enhancements/randomizer/item_list.cpp
+        soh/Enhancements/randomizer/location_list.cpp
+        soh/Enhancements/randomizer/settings.cpp
+        soh/Enhancements/randomizer/location_access/dungeons/water_temple.cpp
+        soh/Enhancements/randomizer/location_access/dungeons/fire_temple.cpp
+        PROPERTIES COMPILE_OPTIONS "-fignore-exceptions"
+    )
+endif()
 
 if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin|NintendoSwitch|CafeOS")
 INSTALL(TARGETS soh DESTINATION . COMPONENT ship)

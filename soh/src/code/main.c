@@ -66,8 +66,10 @@ int main(int argc, char* argv[]) {
 
     Heaps_Alloc();
     Main(0);
+#ifndef __EMSCRIPTEN__
     DeinitOTR();
     Heaps_Free();
+#endif
     return 0;
 }
 
@@ -138,6 +140,10 @@ void Main(void* arg) {
     osStartThread(&sGraphThread);
     osSetThreadPri(0, Z_PRIORITY_SCHED);
 
+#ifdef __EMSCRIPTEN__
+    Graph_ThreadEntry(0);
+    return;
+#else
     Graph_ThreadEntry(0);
 
     while (true) {
@@ -156,4 +162,5 @@ void Main(void* arg) {
     osDestroyThread(&sGraphThread);
     func_800FBFD8();
     osSyncPrintf("mainproc 実行終了\n"); // "End of execution"
+#endif
 }

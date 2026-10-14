@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -98,7 +100,9 @@ int main(int argc, char** argv) {
 
     for (const auto& rom : roms) {
         // A fresh extraction per ROM; torch names the archive from config.yml.
-        const std::string archive = SohTorch::Extract(rom, src, dest, version, nullptr);
+        std::ifstream romFile(rom, std::ios::binary);
+        std::vector<uint8_t> romData((std::istreambuf_iterator<char>(romFile)), std::istreambuf_iterator<char>());
+        const std::string archive = SohTorch::Extract(std::move(romData), src, dest, version, nullptr);
         if (archive.empty()) {
             fprintf(stderr, "failed to extract %s\n", rom.c_str());
             return 1;

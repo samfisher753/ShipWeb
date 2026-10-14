@@ -1,6 +1,19 @@
 #include "Network.h"
 #include <spdlog/spdlog.h>
 
+#ifdef __EMSCRIPTEN__
+static inline int SDLNet_ResolveHost(IPaddress*, const char*, uint16_t) { return -1; }
+static inline const char* SDLNet_GetError() { return "Not supported on Web"; }
+static inline int SDLNet_TCP_Send(TCPsocket, const void*, int) { return 0; }
+static inline TCPsocket SDLNet_TCP_Open(IPaddress*) { return nullptr; }
+static inline int SDLNet_TCP_Recv(TCPsocket, void*, int) { return 0; }
+static inline void SDLNet_TCP_Close(TCPsocket) {}
+static inline SDLNet_SocketSet SDLNet_AllocSocketSet(int) { return nullptr; }
+static inline int SDLNet_TCP_AddSocket(SDLNet_SocketSet, TCPsocket) { return 0; }
+static inline int SDLNet_CheckSockets(SDLNet_SocketSet, int) { return 0; }
+static inline void SDLNet_FreeSocketSet(SDLNet_SocketSet) {}
+#endif
+
 // MARK: - Public
 
 void Network::Enable(const char* host, uint16_t port) {

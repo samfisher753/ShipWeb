@@ -107,16 +107,23 @@ void aLoadBufferImpl(const void* source_addr, uint16_t dest_addr, uint16_t nbyte
 #endif
 }
 
+#ifndef __EMSCRIPTEN__
 #include <opusfile.h>
-
 // The decoder is cached on the note, so remember which buffer it was opened for.
 struct OpusDecState {
     OggOpusFile* file;
     const void* source;
 };
+#else
+struct OpusDecState {
+    void* file;
+    const void* source;
+};
+#endif
 
 void aOPUSdecImpl(void* source_addr, uint16_t dest_addr, uint16_t nbytes, struct OpusDecState** decState, int32_t pos,
                   uint32_t size) {
+#ifndef __EMSCRIPTEN__
     int readSamples = 0;
     struct OpusDecState* dec = *decState;
 
@@ -150,11 +157,14 @@ void aOPUSdecImpl(void* source_addr, uint16_t dest_addr, uint16_t nbytes, struct
             break;
         readSamples += ret;
     }
+#endif
 }
 
 void aOPUSFree(struct OpusDecState* dec) {
+#ifndef __EMSCRIPTEN__
     op_free(dec->file);
     free(dec);
+#endif
 }
 
 void aSaveBufferImpl(uint16_t source_addr, int16_t* dest_addr, uint16_t nbytes) {

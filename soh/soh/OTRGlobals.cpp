@@ -10,6 +10,9 @@
 #include <optional>
 #include <spdlog/common.h>
 #include <imgui.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 #include "ResourceManagerHelpers.h"
 #include <fast/Fast3dWindow.h>
@@ -1038,6 +1041,29 @@ int AudioPlayer_Buffered(void);
 extern "C" int AudioPlayer_GetDesiredBuffered(void);
 std::unordered_map<std::string, ExtensionEntry> ExtensionCache;
 
+// AudioMgr_ThreadEntry(&gAudioMgr);
+//  528 and 544 relate to 60 fps at 32 kHz 32000/60 = 533.333..
+//  in an ideal world, one third of the calls should use num_samples=544 and two thirds num_samples=528
+#define SAMPLES_HIGH 560
+#define SAMPLES_LOW 528
+
+#define AUDIO_FRAMES_PER_UPDATE (R_UPDATE_RATE > 0 ? R_UPDATE_RATE : 1)
+#define NUM_AUDIO_CHANNELS 2
+
+static void OTRAudio_ProcessFrame() {
+    int samples_left = AudioPlayer_Buffered();
+    u32 num_audio_samples = samples_left < AudioPlayer_GetDesiredBuffered() ? SAMPLES_HIGH : SAMPLES_LOW;
+
+    // 3 is the maximum authentic frame divisor.
+    s16 audio_buffer[SAMPLES_HIGH * NUM_AUDIO_CHANNELS * 3];
+    for (int i = 0; i < AUDIO_FRAMES_PER_UPDATE; i++) {
+        AudioMgr_CreateNextAudioBuffer(audio_buffer + i * (num_audio_samples * NUM_AUDIO_CHANNELS), num_audio_samples);
+    }
+
+    AudioPlayer_Play((u8*)audio_buffer,
+                     num_audio_samples * (sizeof(int16_t) * NUM_AUDIO_CHANNELS * AUDIO_FRAMES_PER_UPDATE));
+}
+
 void OTRAudio_Thread() {
     while (audio.running) {
         {
@@ -1051,28 +1077,7 @@ void OTRAudio_Thread() {
             }
         }
         std::unique_lock<std::mutex> Lock(audio.mutex);
-// AudioMgr_ThreadEntry(&gAudioMgr);
-//  528 and 544 relate to 60 fps at 32 kHz 32000/60 = 533.333..
-//  in an ideal world, one third of the calls should use num_samples=544 and two thirds num_samples=528
-#define SAMPLES_HIGH 560
-#define SAMPLES_LOW 528
-
-#define AUDIO_FRAMES_PER_UPDATE (R_UPDATE_RATE > 0 ? R_UPDATE_RATE : 1)
-#define NUM_AUDIO_CHANNELS 2
-
-        int samples_left = AudioPlayer_Buffered();
-        u32 num_audio_samples = samples_left < AudioPlayer_GetDesiredBuffered() ? SAMPLES_HIGH : SAMPLES_LOW;
-
-        // 3 is the maximum authentic frame divisor.
-        s16 audio_buffer[SAMPLES_HIGH * NUM_AUDIO_CHANNELS * 3];
-        for (int i = 0; i < AUDIO_FRAMES_PER_UPDATE; i++) {
-            AudioMgr_CreateNextAudioBuffer(audio_buffer + i * (num_audio_samples * NUM_AUDIO_CHANNELS),
-                                           num_audio_samples);
-        }
-
-        AudioPlayer_Play((u8*)audio_buffer,
-                         num_audio_samples * (sizeof(int16_t) * NUM_AUDIO_CHANNELS * AUDIO_FRAMES_PER_UPDATE));
-
+        OTRAudio_ProcessFrame();
         audio.processing = false;
         audio.cv_from_thread.notify_one();
     }
@@ -1084,7 +1089,10 @@ void OTRAudio_Init() {
 
     if (!audio.running) {
         audio.running = true;
+#ifndef __EMSCRIPTEN__
+        // The web build has no threads; audio is mixed on the main thread in Graph_ProcessGfxCommands.
         audio.thread = std::thread(OTRAudio_Thread);
+#endif
     }
 }
 
@@ -1104,7 +1112,9 @@ extern "C" void OTRAudio_Exit() {
     audio.cv_to_thread.notify_all();
 
     // Wait until the audio thread quit
-    audio.thread.join();
+    if (audio.thread.joinable()) {
+        audio.thread.join();
+    }
 #if 0
     for (size_t i = 0; i < sequenceMapSize; i++) {
         free(sequenceMap[i]);
@@ -1524,7 +1534,10 @@ extern "C" void InitOTR(int argc, char* argv[]) {
     SetAppImageHome();
 #endif
     OTRGlobals::Instance = new OTRGlobals();
+#ifndef __EMSCRIPTEN__
+    // The web build ships pre-extracted archives.
     OTRGlobals::Instance->RunExtract(argc, argv);
+#endif
 
     OTRGlobals::Instance->Initialize();
     CustomMessageManager::Instance = new CustomMessageManager();
@@ -1580,7 +1593,9 @@ extern "C" void InitOTR(int argc, char* argv[]) {
     }
 
     srand(static_cast<unsigned int>(now));
+#ifndef __EMSCRIPTEN__
     SDLNet_Init();
+#endif
     if (CVarGetInteger(CVAR_REMOTE_CROWD_CONTROL("Enabled"), 0)) {
         CrowdControl::Instance->Enable();
     }
@@ -1614,7 +1629,9 @@ extern "C" void DeinitOTR() {
     if (CVarGetInteger(CVAR_REMOTE_ANCHOR("Enabled"), 0)) {
         Anchor::Instance->Disable();
     }
+#ifndef __EMSCRIPTEN__
     SDLNet_Quit();
+#endif
 
     // Destroying gui here because we have shared ptrs to LUS objects which output to SPDLOG which is destroyed before
     // these shared ptrs.
@@ -1762,6 +1779,29 @@ extern "C" void Graph_StartFrame() {
 }
 
 // Interpolated frames of a tick are evenly spaced numerators time+step, time+2*step, ... over denom.
+// Draws interpolated frame `index` of the current game tick, at `time` out of `denom` (denom = the tick's end).
+static void RunCommandsFrame(const std::shared_ptr<Fast::Fast3dWindow>& wnd, Gfx* Commands, int time, int denom,
+                             int index) {
+    auto intp = wnd->GetInterpreterWeak().lock().get();
+    intp->mInterpolationIndex = index;
+
+    const float interpolationStep = (float)time / denom;
+    std::unordered_map<Mtx*, MtxF> mtx_replacements =
+        (time == denom) ? std::unordered_map<Mtx*, MtxF>() : FrameInterpolation_Interpolate(interpolationStep);
+    // Ribbon vertices are shared by every frame of a tick: re-blend them before each run.
+    FrameInterpolation_UpdateRibbonHeads(interpolationStep);
+    // Skinned vertices are shared by every displayed frame, so blend them before each run
+    FrameInterpolation_UpdateSkinnedVertices(interpolationStep);
+    intp->mInterpolationT = interpolationStep;
+    wnd->DrawAndRunGraphicsCommands(Commands, mtx_replacements);
+}
+
+static void PushMenuThemeColor() {
+    UIWidgets::Colors themeColor =
+        static_cast<UIWidgets::Colors>(CVarGetInteger(CVAR_SETTING("Menu.Theme"), UIWidgets::Colors::LightBlue));
+    ImGui::PushStyleColor(ImGuiCol_TitleBgActive, UIWidgets::ColorValues.at(themeColor));
+}
+
 void RunCommands(Gfx* Commands, int time, int step, int denom, int count) {
     auto wnd = std::dynamic_pointer_cast<Fast::Fast3dWindow>(OTRGlobals::Instance->context->GetWindow());
 
@@ -1772,36 +1812,75 @@ void RunCommands(Gfx* Commands, int time, int step, int denom, int count) {
     // Process window events for resize, mouse, keyboard events
     wnd->HandleEvents();
 
-    auto intp = wnd->GetInterpreterWeak().lock().get();
-    intp->mInterpolationIndex = 0;
-
-    UIWidgets::Colors themeColor =
-        static_cast<UIWidgets::Colors>(CVarGetInteger(CVAR_SETTING("Menu.Theme"), UIWidgets::Colors::LightBlue));
-    ImGui::PushStyleColor(ImGuiCol_TitleBgActive, UIWidgets::ColorValues.at(themeColor));
+    PushMenuThemeColor();
     for (int i = 0; i < count; i++) {
         time += step;
-        const float interpolationStep = (float)time / denom;
-        std::unordered_map<Mtx*, MtxF> mtx_replacements =
-            (time == denom) ? std::unordered_map<Mtx*, MtxF>() : FrameInterpolation_Interpolate(interpolationStep);
-        // Ribbon vertices are shared by every frame of a tick: re-blend them before each run.
-        FrameInterpolation_UpdateRibbonHeads(interpolationStep);
-        // Skinned vertices are shared by every displayed frame, so blend them before each run
-        FrameInterpolation_UpdateSkinnedVertices(interpolationStep);
-        intp->mInterpolationT = interpolationStep;
-        wnd->DrawAndRunGraphicsCommands(Commands, mtx_replacements);
-        intp->mInterpolationIndex++;
+        RunCommandsFrame(wnd, Commands, time, denom, i);
     }
     ImGui::PopStyleColor();
 }
 
+#ifdef __EMSCRIPTEN__
+// The browser only shows the last frame drawn in each requestAnimationFrame callback, so drawing all the interpolated
+// frames of a tick back to back (like RunCommands does) would only ever show the last one. Instead, draw the first one
+// with the tick and each of the others in the callback closest to its due time, until the next tick.
+static struct {
+    Gfx* commands;
+    int startTime;
+    int step;
+    int denom;
+    int count;
+    int next;
+    double tickStartMs;
+    double frameMs;
+} sPendingFrames;
+
+extern "C" void Graph_RunPendingInterpolatedFrame();
+
+static void RunCommandsSpread(Gfx* Commands, int time, int step, int denom, int count) {
+    sPendingFrames = { Commands, time, step, denom, count, 0, emscripten_get_now(),
+                       1000.0 * (R_UPDATE_RATE > 0 ? R_UPDATE_RATE : 1) / 60.0 / std::max(count, 1) };
+    Graph_RunPendingInterpolatedFrame();
+}
+
+extern "C" void Graph_RunPendingInterpolatedFrame() {
+    if (sPendingFrames.next >= sPendingFrames.count) {
+        return;
+    }
+
+    auto wnd = std::dynamic_pointer_cast<Fast::Fast3dWindow>(OTRGlobals::Instance->context->GetWindow());
+    if (wnd == nullptr) {
+        return;
+    }
+
+    // Pick the frame due now; if the display is slower than the target fps, skip the ones already past.
+    double elapsed = emscripten_get_now() - sPendingFrames.tickStartMs;
+    int index = std::min((int)std::lround(elapsed / sPendingFrames.frameMs), sPendingFrames.count - 1);
+    if (index < sPendingFrames.next) {
+        return;
+    }
+    sPendingFrames.next = index + 1;
+
+    wnd->HandleEvents();
+    PushMenuThemeColor();
+    RunCommandsFrame(wnd, sPendingFrames.commands, sPendingFrames.startTime + sPendingFrames.step * (index + 1),
+                     sPendingFrames.denom, index);
+    ImGui::PopStyleColor();
+}
+#endif
+
 // C->C++ Bridge
 extern "C" void Graph_ProcessGfxCommands(Gfx* commands) {
+#ifdef __EMSCRIPTEN__
+    OTRAudio_ProcessFrame();
+#else
     {
         std::unique_lock<std::mutex> Lock(audio.mutex);
         audio.processing = true;
     }
 
     audio.cv_to_thread.notify_one();
+#endif
     int target_fps = OTRGlobals::Instance->GetInterpolationFPS();
     static int last_fps;
     static int last_update_rate;
@@ -1842,17 +1921,23 @@ extern "C" void Graph_ProcessGfxCommands(Gfx* commands) {
         count = 1;
     }
 
+#ifdef __EMSCRIPTEN__
+    RunCommandsSpread(commands, start_time, step, next_original_frame, count);
+#else
     RunCommands(commands, start_time, step, next_original_frame, count);
+#endif
 
     last_fps = fps;
     last_update_rate = R_UPDATE_RATE;
 
+#ifndef __EMSCRIPTEN__
     {
         std::unique_lock<std::mutex> Lock(audio.mutex);
         while (audio.processing) {
             audio.cv_from_thread.wait(Lock);
         }
     }
+#endif
 
     bool curAltAssets = CVarGetInteger(CVAR_SETTING("AltAssets"), 1);
     if (prevAltAssets != curAltAssets) {

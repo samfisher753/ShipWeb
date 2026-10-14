@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ship of Harkinian</title>
+    <style>
+        html, body {
+            margin: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            color: #ddd;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+
+        /* SDL reads the canvas CSS size to size the game window (and follows it on resize). */
+        #canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            border: 0;
+            outline: none;
+            background: #000;
+        }
+
+        #loader {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            background: #000;
+            transition: opacity 0.4s;
+        }
+
+        #loader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #loader h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+        }
+
+        #progress {
+            width: min(320px, 70vw);
+            height: 6px;
+            border-radius: 3px;
+            background: #222;
+            overflow: hidden;
+        }
+
+        #progress-bar {
+            width: 0;
+            height: 100%;
+            background: #4a8fe7;
+            transition: width 0.15s;
+        }
+
+        #status {
+            min-height: 1.2em;
+            font-size: 13px;
+            color: #999;
+        }
+
+        #loader.error #status {
+            color: #e66;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
+
+    <div id="loader">
+        <h1>Ship of Harkinian</h1>
+        <div id="progress"><div id="progress-bar"></div></div>
+        <div id="status">Downloading…</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("canvas");
+        const loader = document.getElementById("loader");
+        const statusText = document.getElementById("status");
+        const progressBar = document.getElementById("progress-bar");
+
+        // Keep keyboard input going to the game.
+        canvas.addEventListener("mousedown", () => canvas.focus());
+
+        canvas.addEventListener("webglcontextlost", (e) => {
+            e.preventDefault();
+            showError("The WebGL context was lost. Reload the page to continue.");
+        });
+
+        function showError(message) {
+            loader.classList.remove("hidden");
+            loader.classList.add("error");
+            statusText.textContent = message;
+        }
+
+        var Module = {
+            canvas,
+            print: (...args) => console.log(...args),
+            printErr: (...args) => console.error(...args),
+            setStatus(text) {
+                // Emscripten reports download progress as "Downloading data... (loaded/total)".
+                const match = text.match(/\((\d+(?:\.\d+)?)\/(\d+)\)/);
+                if (match) {
+                    progressBar.style.width = (100 * match[1] / match[2]).toFixed(1) + "%";
+                    statusText.textContent = "Downloading game data…";
+                } else if (text) {
+                    statusText.textContent = text;
+                }
+            },
+            totalDependencies: 0,
+            monitorRunDependencies(left) {
+                this.totalDependencies = Math.max(this.totalDependencies, left);
+                if (left) {
+                    statusText.textContent = "Preparing…";
+                }
+            },
+            onRuntimeInitialized() {
+                loader.classList.add("hidden");
+                canvas.focus();
+            },
+            onAbort(what) {
+                showError("Ship of Harkinian stopped unexpectedly: " + what);
+            },
+        };
+
+        window.addEventListener("error", (e) => showError(e.message || "Unexpected error, see the browser console."));
+    </script>
+    {{{ SCRIPT }}}
+</body>
+</html>

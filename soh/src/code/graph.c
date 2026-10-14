@@ -10,6 +10,9 @@
 #include <libultraship/bridge/windowbridge.h>
 #include "soh/Enhancements/gameconsole.h"
 #include "soh/OTRGlobals.h"
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 #define GFXPOOL_HEAD_MAGIC 0x1234
 #define GFXPOOL_TAIL_MAGIC 0x5678
@@ -438,6 +441,29 @@ static void RunFrame() {
     u32 size;
     char faultMsg[0x50];
 
+#ifdef __EMSCRIPTEN__
+    // requestAnimationFrame fires at the display refresh rate (usually 60Hz) and there is no thread to sleep on, so
+    // pace the game logic here: run one game tick every (R_UPDATE_RATE / 60) seconds (20Hz by default).
+    if (runFrameContext.state == 1) {
+        static double sNextTickMs = 0.0;
+        double nowMs = emscripten_get_now();
+        double intervalMs = 1000.0 * (R_UPDATE_RATE > 0 ? R_UPDATE_RATE : 3) / 60.0;
+        if (sNextTickMs == 0.0) {
+            sNextTickMs = nowMs;
+        }
+        if (nowMs + 1.0 < sNextTickMs) {
+            // No tick due yet: show the next interpolated frame of the last one instead.
+            Graph_RunPendingInterpolatedFrame();
+            return;
+        }
+        sNextTickMs += intervalMs;
+        // If we fell far behind (slow frame, background tab...), don't try to catch up with a burst of ticks.
+        if (nowMs - sNextTickMs > intervalMs * 2.0) {
+            sNextTickMs = nowMs + intervalMs;
+        }
+    }
+#endif
+
     switch (runFrameContext.state) {
         case 0:
             break;
@@ -507,9 +533,13 @@ static void RunFrame() {
 }
 
 void Graph_ThreadEntry(void* arg0) {
+#ifdef __EMSCRIPTEN__
+    emscripten_set_main_loop(RunFrame, 0, 0);
+#else
     while (WindowIsRunning()) {
         RunFrame();
     }
+#endif
 }
 
 void* Graph_Alloc(GraphicsContext* gfxCtx, size_t size) {

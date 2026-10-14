@@ -3,7 +3,13 @@
 #ifdef __cplusplus
 
 #include <thread>
+#ifndef __EMSCRIPTEN__
 #include <SDL2/SDL_net.h>
+#else
+typedef struct { uint32_t host; uint16_t port; } IPaddress;
+typedef void* TCPsocket;
+typedef void* SDLNet_SocketSet;
+#endif
 #include <nlohmann/json.hpp>
 
 class Network {
