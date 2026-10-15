@@ -259,4 +259,6 @@ void RegisterAnchorMenu() {
         .HideInSearch(true);
 }
 
+#ifndef __EMSCRIPTEN__ // The Network menu isn't added on the web (no TCP sockets).
 static RegisterMenuInitFunc menuInitFunc(RegisterAnchorMenu);
+#endif

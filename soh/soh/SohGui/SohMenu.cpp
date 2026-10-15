@@ -87,7 +87,10 @@ void SohMenu::AddMenuElements() {
     AddMenuSettings();
     AddMenuEnhancements();
     AddMenuRandomizer();
+#ifndef __EMSCRIPTEN__
+    // Crowd Control, Anchor and Sail need TCP sockets, which browsers don't provide.
     AddMenuNetwork();
+#endif
     AddMenuDevTools();
 
     if (CVarGetInteger(CVAR_SETTING("Menu.SidebarSearch"), 0)) {

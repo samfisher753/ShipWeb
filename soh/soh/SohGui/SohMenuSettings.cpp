@@ -146,6 +146,7 @@ void SohMenu::AddMenuSettings() {
             "Allows controller navigation of the port menu (Settings, Enhancements,...)\nCAUTION: "
             "This will disable game inputs while the menu is visible.\n\nD-pad to move between "
             "items, A to select, B to move up in scope."));
+#ifndef __EMSCRIPTEN__ // Browsers only deliver gamepad input to the focused page.
     AddWidget(path, "Allow background inputs", WIDGET_CVAR_CHECKBOX)
         .CVar(CVAR_ALLOW_BACKGROUND_INPUTS)
         .RaceDisable(false)
@@ -157,6 +158,7 @@ void SohMenu::AddMenuSettings() {
                      .Tooltip("Allows controller inputs to be picked up by the game even when the game window isn't "
                               "the focused window.")
                      .DefaultValue(1));
+#endif
     AddWidget(path, "Menu Background Opacity", WIDGET_CVAR_SLIDER_FLOAT)
         .CVar(CVAR_SETTING("Menu.BackgroundOpacity"))
         .RaceDisable(false)
@@ -193,6 +195,7 @@ void SohMenu::AddMenuSettings() {
     AddWidget(path, "Reset Button Combination:", WIDGET_CVAR_BTN_SELECTOR)
         .CVar("gSettings.ResetBtn")
         .Options(BtnSelectorOptions().DefaultValue(BTN_CUSTOM_MODIFIER2));
+#ifndef __EMSCRIPTEN__ // The app files live in the browser's virtual file system.
     AddWidget(path, "Open App Files Folder", WIDGET_BUTTON)
         .RaceDisable(false)
         .Callback([](WidgetInfo& info) {
@@ -200,6 +203,7 @@ void SohMenu::AddMenuSettings() {
             SDL_OpenURL(std::string("file:///" + std::filesystem::absolute(filesPath).string()).c_str());
         })
         .Options(ButtonOptions().Tooltip("Opens the folder that contains the save and mods folders, etc."));
+#endif
 
     AddWidget(path, "Boot", WIDGET_SEPARATOR_TEXT);
     AddWidget(path, "Boot Sequence", WIDGET_CVAR_COMBOBOX)
@@ -323,7 +327,9 @@ void SohMenu::AddMenuSettings() {
         .Callback([](WidgetInfo& info) {
             Audio_SetGameVolume(SEQ_PLAYER_SFX, ((float)CVarGetInteger(CVAR_SETTING("Volume.SFX"), 100) / 100.0f));
         });
+#ifndef __EMSCRIPTEN__ // SDL audio is the only backend on the web.
     AddWidget(path, "Audio API (Needs reload)", WIDGET_AUDIO_BACKEND).RaceDisable(false);
+#endif
 
     // Graphics Settings
     static int32_t maxFps = 360;
@@ -401,7 +407,9 @@ void SohMenu::AddMenuSettings() {
         .CVar(CVAR_SETTING("MatchRefreshRate"))
         .RaceDisable(false)
         .Options(CheckboxOptions().Tooltip("Matches interpolation value to the refresh rate of your display."));
+#ifndef __EMSCRIPTEN__ // WebGL (OpenGL ES) is the only renderer on the web.
     AddWidget(path, "Renderer API (Needs reload)", WIDGET_VIDEO_BACKEND).RaceDisable(false);
+#endif
     AddWidget(path, "Enable Vsync", WIDGET_CVAR_CHECKBOX)
         .CVar(CVAR_VSYNC_ENABLED)
         .RaceDisable(false)
@@ -532,6 +540,7 @@ void SohMenu::AddMenuSettings() {
         .RaceDisable(false)
         .Options(CheckboxOptions().Tooltip("Prevent notifications from playing a sound."));
 
+#ifndef __EMSCRIPTEN__ // There's no mods folder to load mods from on the web (yet).
     // Mod Menu
     path.sidebarName = "Mod Menu";
     AddSidebarEntry("Settings", path.sidebarName, 1);
@@ -540,6 +549,7 @@ void SohMenu::AddMenuSettings() {
         .WindowName("Mod Menu")
         .HideInSearch(true)
         .Options(WindowButtonOptions().Tooltip("Enables the separate Mod Menu Window."));
+#endif
 }
 
 } // namespace SohGui
