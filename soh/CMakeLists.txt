@@ -763,8 +763,13 @@ if(EMSCRIPTEN)
     target_link_options(soh PRIVATE
         "SHELL:--preload-file ${CMAKE_BINARY_DIR}/preload@/"
         "SHELL:--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
+        "SHELL:--pre-js ${CMAKE_CURRENT_SOURCE_DIR}/web/persistence.js"
+        "-lidbfs.js"
     )
-    set_property(TARGET soh APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html)
+    set_property(TARGET soh APPEND PROPERTY LINK_DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html
+        ${CMAKE_CURRENT_SOURCE_DIR}/web/persistence.js
+    )
 
     # These files contain giant static-data init functions (thousands of CustomMessage/std::string temporaries).
     # With Emscripten's JS-based exception handling every call becomes an invoke_* and every temporary stays live for
