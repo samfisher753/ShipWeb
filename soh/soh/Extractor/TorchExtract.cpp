@@ -33,7 +33,8 @@ size_t CountAssetFiles(const std::string& ymlDir) {
 }
 
 std::string Extract(std::vector<uint8_t> rom, const std::string& srcDir, const std::string& destDir,
-                    const std::string& portVersion, std::atomic<size_t>* progress) {
+                    const std::string& portVersion, std::atomic<size_t>* progress,
+                    std::function<void()> onAssetDone) {
     std::string archiveName;
 
     try {
@@ -41,14 +42,22 @@ std::string Extract(std::vector<uint8_t> rom, const std::string& srcDir, const s
         auto companion = std::make_unique<Companion>(std::move(rom), ArchiveType::O2R, false, srcDir, destDir);
         Companion::Instance = companion.get();
         companion->SetVersion(portVersion);
-        companion->SetPhaseCallback([progress](int) {
+        companion->SetPhaseCallback([progress, onAssetDone](int) {
             if (progress != nullptr) {
                 (*progress)++;
+            }
+            if (onAssetDone) {
+                onAssetDone();
             }
         });
 
         // Init is the whole run; it calls Process() internally.
         companion->Init(ExportType::Binary);
+#ifdef __EMSCRIPTEN__
+        // Except on emscripten, where torch's own web build drives Process() itself.
+        std::atomic<size_t> assetCount{ 0 };
+        companion->Process(assetCount);
+#endif
 
         // config.yml names the archive per rom; ask rather than guess, and ask before the
         // companion goes away.

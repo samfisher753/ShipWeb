@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -17,8 +18,9 @@ size_t CountAssetFiles(const std::string& ymlDir);
 // only lists hashes of big-endian dumps. Torch picks both the version directory under srcDir and the
 // archive name (oot.o2r, oot-mq.o2r) from config.yml by hashing the ROM, so the name it chose
 // is returned rather than assumed. Empty if extraction threw or produced no archive.
-// Increments progress once per asset file.
+// Increments progress, and calls onAssetDone if set, once per asset file.
 std::string Extract(std::vector<uint8_t> rom, const std::string& srcDir, const std::string& destDir,
-                    const std::string& portVersion, std::atomic<size_t>* progress);
+                    const std::string& portVersion, std::atomic<size_t>* progress,
+                    std::function<void()> onAssetDone = nullptr);
 
 } // namespace SohTorch

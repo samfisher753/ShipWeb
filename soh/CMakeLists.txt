@@ -760,15 +760,22 @@ endif()
 
 
 if(EMSCRIPTEN)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/web/version.js.in ${CMAKE_CURRENT_BINARY_DIR}/web/version.js @ONLY)
     target_link_options(soh PRIVATE
         "SHELL:--preload-file ${CMAKE_BINARY_DIR}/preload@/"
         "SHELL:--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
+        "SHELL:--pre-js ${CMAKE_CURRENT_BINARY_DIR}/web/version.js"
         "SHELL:--pre-js ${CMAKE_CURRENT_SOURCE_DIR}/web/persistence.js"
+        "SHELL:--pre-js ${CMAKE_CURRENT_SOURCE_DIR}/web/rom-setup.js"
         "-lidbfs.js"
     )
+    # The page runs the ROM extractor (root CMakeLists) when there are no extracted assets yet.
+    add_dependencies(soh soh-extractor)
     set_property(TARGET soh APPEND PROPERTY LINK_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html
+        ${CMAKE_CURRENT_BINARY_DIR}/web/version.js
         ${CMAKE_CURRENT_SOURCE_DIR}/web/persistence.js
+        ${CMAKE_CURRENT_SOURCE_DIR}/web/rom-setup.js
     )
 
     # These files contain giant static-data init functions (thousands of CustomMessage/std::string temporaries).

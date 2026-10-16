@@ -308,6 +308,55 @@ if(MSVC)
         MSVC_RUNTIME_LIBRARY "$<IF:$<CONFIG:Debug>,MultiThreadedDebug,MultiThreaded>")
 endif()
 
+if(EMSCRIPTEN)
+    # The web build extracts the player's ROM in the browser. The extractor is a separate small module (torch only)
+    # run in a Web Worker by soh/web/extractor-worker.js, next to the game in soh/.
+    set(SHIPWEB_OUTPUT_DIR ${CMAKE_BINARY_DIR}/soh)
+    add_executable(soh-extractor
+        ${CMAKE_CURRENT_SOURCE_DIR}/soh/web/extractor/ExtractorMain.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/soh/soh/Extractor/TorchExtract.cpp
+    )
+    target_include_directories(soh-extractor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/soh/soh/Extractor)
+    target_compile_definitions(soh-extractor PRIVATE SHIPWEB_PORT_VERSION="${CMAKE_PROJECT_VERSION}")
+    target_link_libraries(soh-extractor PRIVATE torch)
+    target_link_options(soh-extractor PRIVATE
+        "--no-entry"
+        "SHELL:-s ENVIRONMENT=worker"
+        "SHELL:-s EXPORTED_RUNTIME_METHODS=FS,ccall"
+        "SHELL:-s FORCE_FILESYSTEM=1"
+    )
+    set_target_properties(soh-extractor PROPERTIES SUFFIX ".js" RUNTIME_OUTPUT_DIRECTORY ${SHIPWEB_OUTPUT_DIR})
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/soh/web/extractor-worker.js ${SHIPWEB_OUTPUT_DIR}/extractor-worker.js
+        COPYONLY)
+
+    # The asset metadata torch needs, packaged per ROM version (yml/<version>.data/.js, ~7MB each) so the page only
+    # downloads the one matching the player's ROM.
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    set(SHIPWEB_YML_DIR ${CMAKE_CURRENT_SOURCE_DIR}/soh/assets/yml)
+    file(GLOB SHIPWEB_YML_ENTRIES RELATIVE ${SHIPWEB_YML_DIR} ${SHIPWEB_YML_DIR}/*)
+    set(SHIPWEB_YML_PACKAGES)
+    file(MAKE_DIRECTORY ${SHIPWEB_OUTPUT_DIR}/yml)
+    foreach(version IN LISTS SHIPWEB_YML_ENTRIES)
+        if(NOT IS_DIRECTORY ${SHIPWEB_YML_DIR}/${version})
+            continue()
+        endif()
+        file(GLOB_RECURSE version_files ${SHIPWEB_YML_DIR}/${version}/*)
+        add_custom_command(
+            OUTPUT ${SHIPWEB_OUTPUT_DIR}/yml/${version}.data ${SHIPWEB_OUTPUT_DIR}/yml/${version}.js
+            COMMAND ${Python3_EXECUTABLE} ${EMSCRIPTEN_ROOT_PATH}/tools/file_packager.py ${version}.data
+                    --preload ${SHIPWEB_YML_DIR}/config.yml@/yml/config.yml ${SHIPWEB_YML_DIR}/${version}@/yml/${version}
+                    --js-output=${version}.js --export-name=Module
+            WORKING_DIRECTORY ${SHIPWEB_OUTPUT_DIR}/yml
+            DEPENDS ${SHIPWEB_YML_DIR}/config.yml ${version_files}
+            COMMENT "Packaging asset metadata for ${version}"
+            VERBATIM
+        )
+        list(APPEND SHIPWEB_YML_PACKAGES ${SHIPWEB_OUTPUT_DIR}/yml/${version}.data)
+    endforeach()
+    add_custom_target(soh-extractor-yml DEPENDS ${SHIPWEB_YML_PACKAGES})
+    add_dependencies(soh-extractor soh-extractor-yml)
+endif()
+
 # Target to generate OTRs. SOH_ROM_PATH takes roms and/or directories of roms; torch names each
 # archive (oot.o2r or oot-mq.o2r) from its hash, so a vanilla and a master quest rom produce both
 # in one run. soh.o2r comes from GenerateSohOtr, chained below.

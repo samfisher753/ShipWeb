@@ -1,8 +1,9 @@
-// Persists the game's app directory (settings, saves, presets, randomizer spoilers...) in IndexedDB.
+// Persists the game's files in IndexedDB, in two IDBFS mounts (each its own IndexedDB database):
+// - /data: the app directory (settings, saves, presets, randomizer spoilers...). Export/Import Data works on this one.
+// - /assets: the assets extracted from the player's ROM (see rom-setup.js).
 //
-// /data is an IDBFS mount, loaded before main() runs. Writes go to memory as usual; afterwards the mount is copied back
-// to IndexedDB, shortly after the last change and right away when the page is hidden or closed.
-// Each IDBFS mount is its own IndexedDB database, so other mounts (e.g. extracted ROM assets) stay separate.
+// Both are loaded before main() runs. Writes go to memory as usual; afterwards the mounts are copied back to
+// IndexedDB, shortly after the last change to /data and right away when the page is hidden or closed.
 
 const SHIP_DATA_DIR = "/data";
 const SHIP_SYNC_DELAY_MS = 500;
@@ -10,6 +11,8 @@ const SHIP_SYNC_DELAY_MS = 500;
 Module["preRun"] = [].concat(Module["preRun"] || [], () => {
     FS.mkdir(SHIP_DATA_DIR);
     FS.mount(IDBFS, {}, SHIP_DATA_DIR);
+    FS.mkdir(SHIP_ASSETS_DIR);
+    FS.mount(IDBFS, {}, SHIP_ASSETS_DIR);
 
     addRunDependency("ship-data-load");
     FS.syncfs(true, (err) => {
@@ -18,7 +21,8 @@ Module["preRun"] = [].concat(Module["preRun"] || [], () => {
         } else {
             shipWatchDataChanges();
         }
-        removeRunDependency("ship-data-load");
+        // The game can't start without the ROM assets.
+        shipEnsureRomAssets(() => removeRunDependency("ship-data-load"));
     });
 });
 

@@ -5,12 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Ship of Harkinian</title>
     <style>
+        :root {
+            --bg: #07090f;
+            --card: #11151f;
+            --card-border: #232a3a;
+            --text: #e4e7ee;
+            --muted: #8d95a8;
+            --accent: #4a8fe7;
+            --accent-soft: rgba(74, 143, 231, 0.14);
+            --error: #ef6b6b;
+        }
+
         html, body {
             margin: 0;
             height: 100%;
             overflow: hidden;
-            background: #000;
-            color: #ddd;
+            background: var(--bg);
+            color: var(--text);
             font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
         }
 
@@ -32,7 +43,10 @@
             align-items: center;
             justify-content: center;
             gap: 14px;
-            background: #000;
+            padding: 16px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            background: radial-gradient(ellipse at 50% 30%, #152038 0%, var(--bg) 70%);
             transition: opacity 0.4s;
         }
 
@@ -43,34 +57,201 @@
 
         #loader h1 {
             margin: 0;
-            font-size: 22px;
+            font-size: 24px;
             font-weight: 600;
             letter-spacing: 0.04em;
+        }
+
+        #loader h1 small {
+            margin-left: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--accent);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
         }
 
         #progress {
             width: min(320px, 70vw);
             height: 6px;
             border-radius: 3px;
-            background: #222;
+            background: #1d2333;
             overflow: hidden;
         }
 
         #progress-bar {
             width: 0;
             height: 100%;
-            background: #4a8fe7;
+            background: var(--accent);
             transition: width 0.15s;
         }
 
         #status {
             min-height: 1.2em;
             font-size: 13px;
-            color: #999;
+            color: var(--muted);
+            text-align: center;
         }
 
         #loader.error #status {
-            color: #e66;
+            color: var(--error);
+        }
+
+        /* First-run ROM setup (driven by rom-setup.js through Module.romSetupUI). */
+        #rom-setup {
+            display: none;
+            width: min(520px, 100%);
+            box-sizing: border-box;
+            padding: 28px;
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            background: var(--card);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            font-size: 14px;
+            line-height: 1.55;
+        }
+
+        #loader.rom-setup #rom-setup {
+            display: block;
+        }
+
+        #loader.rom-setup #progress,
+        #loader.rom-setup #status {
+            display: none;
+        }
+
+        #rom-setup h2 {
+            margin: 0 0 8px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        #rom-setup p {
+            margin: 0 0 14px;
+            color: var(--muted);
+        }
+
+        #rom-drop {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            padding: 22px 16px;
+            border: 2px dashed var(--card-border);
+            border-radius: 10px;
+            text-align: center;
+            transition: border-color 0.15s, background 0.15s;
+        }
+
+        #rom-drop.dragging {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        #rom-pick {
+            padding: 10px 20px;
+            border: 0;
+            border-radius: 8px;
+            background: var(--accent);
+            color: #fff;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        #rom-pick:hover {
+            filter: brightness(1.1);
+        }
+
+        .rom-extensions {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .rom-extensions code {
+            padding: 1px 6px;
+            border-radius: 4px;
+            background: #1d2333;
+            color: var(--text);
+        }
+
+        #rom-versions {
+            margin-top: 14px;
+            color: var(--muted);
+        }
+
+        #rom-versions summary {
+            cursor: pointer;
+            color: var(--text);
+        }
+
+        #rom-versions ul {
+            margin: 8px 0 0;
+            padding-left: 20px;
+            columns: 2;
+            column-gap: 24px;
+            font-size: 13px;
+        }
+
+        #rom-busy {
+            display: none;
+        }
+
+        #rom-setup.busy #rom-drop,
+        #rom-setup.busy #rom-versions,
+        #rom-setup.busy #rom-intro {
+            display: none;
+        }
+
+        #rom-setup.busy #rom-busy {
+            display: block;
+        }
+
+        #rom-progress {
+            height: 6px;
+            margin: 12px 0 8px;
+            border-radius: 3px;
+            background: #1d2333;
+            overflow: hidden;
+        }
+
+        #rom-progress-bar {
+            width: 0;
+            height: 100%;
+            background: var(--accent);
+            transition: width 0.2s;
+        }
+
+        #rom-busy-note {
+            font-size: 13px;
+        }
+
+        #rom-error {
+            display: none;
+            margin-top: 14px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: rgba(239, 107, 107, 0.12);
+            color: var(--error);
+        }
+
+        #rom-error.visible {
+            display: block;
+        }
+
+        .rom-privacy {
+            margin: 16px 0 0 !important;
+            font-size: 12px;
+        }
+
+        @media (max-width: 480px) {
+            #rom-setup {
+                padding: 20px;
+            }
+
+            #rom-versions ul {
+                columns: 1;
+            }
         }
     </style>
 </head>
@@ -78,9 +259,43 @@
     <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
 
     <div id="loader">
-        <h1>Ship of Harkinian</h1>
+        <h1>Ship of Harkinian<small>Web</small></h1>
         <div id="progress"><div id="progress-bar"></div></div>
         <div id="status">Downloading…</div>
+
+        <section id="rom-setup">
+            <div id="rom-intro">
+                <h2 id="rom-title">Choose your Ocarina of Time ROM</h2>
+                <p id="rom-description">
+                    Ship of Harkinian doesn't include any of the original game. It builds the game's graphics, sounds
+                    and text from your own ROM dump. This is only needed once; afterwards the game starts directly.
+                </p>
+            </div>
+
+            <div id="rom-drop">
+                <button id="rom-pick" type="button">Choose ROM file</button>
+                <div>or drop it here</div>
+                <div class="rom-extensions">Accepted files: <code>.z64</code> <code>.n64</code> <code>.v64</code>
+                    (uncompressed, 32, 54 or 64 MB)</div>
+            </div>
+
+            <details id="rom-versions">
+                <summary>Supported versions</summary>
+                <ul id="rom-version-list"></ul>
+            </details>
+
+            <div id="rom-busy">
+                <h2>Preparing the game</h2>
+                <div id="rom-progress"><div id="rom-progress-bar"></div></div>
+                <div id="rom-busy-text"></div>
+                <p id="rom-busy-note">This takes a few minutes. Keep this tab open.</p>
+            </div>
+
+            <div id="rom-error"></div>
+            <p class="rom-privacy">Your ROM never leaves your computer: it's processed in this browser tab and only
+                the extracted game data is kept, in this browser's storage.</p>
+            <input id="rom-file" type="file" accept=".z64,.n64,.v64" hidden>
+        </section>
     </div>
 
     <script>
@@ -98,13 +313,83 @@
         });
 
         function showError(message) {
-            loader.classList.remove("hidden");
+            loader.classList.remove("hidden", "rom-setup");
             loader.classList.add("error");
             statusText.textContent = message;
         }
 
+        // First-run ROM setup UI, used by rom-setup.js.
+        const romSetupUI = (() => {
+            const section = document.getElementById("rom-setup");
+            const drop = document.getElementById("rom-drop");
+            const fileInput = document.getElementById("rom-file");
+            const errorBox = document.getElementById("rom-error");
+            let onRomChosen = null;
+
+            const choose = (file) => {
+                if (file && onRomChosen && !section.classList.contains("busy")) {
+                    errorBox.classList.remove("visible");
+                    onRomChosen(file);
+                }
+            };
+            document.getElementById("rom-pick").addEventListener("click", () => fileInput.click());
+            fileInput.addEventListener("change", () => {
+                choose(fileInput.files[0]);
+                fileInput.value = "";
+            });
+            for (const type of ["dragenter", "dragover"]) {
+                loader.addEventListener(type, (e) => {
+                    e.preventDefault();
+                    drop.classList.add("dragging");
+                });
+            }
+            loader.addEventListener("dragleave", (e) => {
+                if (e.relatedTarget === null) {
+                    drop.classList.remove("dragging");
+                }
+            });
+            loader.addEventListener("drop", (e) => {
+                e.preventDefault();
+                drop.classList.remove("dragging");
+                choose(e.dataTransfer.files[0]);
+            });
+
+            return {
+                show({ versions, updated, onRomChosen: callback }) {
+                    onRomChosen = callback;
+                    document.getElementById("rom-version-list").replaceChildren(...versions.map((name) => {
+                        const item = document.createElement("li");
+                        item.textContent = name;
+                        return item;
+                    }));
+                    if (updated) {
+                        document.getElementById("rom-title").textContent = "Ship of Harkinian was updated";
+                        document.getElementById("rom-description").textContent =
+                            "The game data needs to be built again from your ROM for this version. Your saves and " +
+                            "settings are kept.";
+                    }
+                    loader.classList.add("rom-setup");
+                },
+                setProgress(fraction, text) {
+                    section.classList.add("busy");
+                    document.getElementById("rom-progress-bar").style.width = (100 * fraction).toFixed(1) + "%";
+                    document.getElementById("rom-busy-text").textContent = text;
+                },
+                showError(message) {
+                    section.classList.remove("busy");
+                    errorBox.textContent = message;
+                    errorBox.classList.add("visible");
+                },
+                hide() {
+                    loader.classList.remove("rom-setup");
+                    statusText.textContent = "Starting…";
+                },
+            };
+        })();
+
         var Module = {
             canvas,
+            romSetupUI,
             print: (...args) => console.log(...args),
             printErr: (...args) => console.error(...args),
             setStatus(text) {
