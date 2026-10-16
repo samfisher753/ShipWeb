@@ -5,6 +5,7 @@
 #include "soh/OTRGlobals.h"
 #include <soh/GameVersions.h>
 #include "soh/ResourceManagerHelpers.h"
+#include "soh/Web/DataTransfer.h"
 #include "UIWidgets.hpp"
 #include <ship/controller/controldeck/ControlDeck.h>
 #include <ship/Context.h>
@@ -203,6 +204,19 @@ void SohMenu::AddMenuSettings() {
             SDL_OpenURL(std::string("file:///" + std::filesystem::absolute(filesPath).string()).c_str());
         })
         .Options(ButtonOptions().Tooltip("Opens the folder that contains the save and mods folders, etc."));
+#else
+    AddWidget(path, "Export Data", WIDGET_BUTTON)
+        .RaceDisable(false)
+        .Callback([](WidgetInfo& info) { ShipWeb::ExportData(); })
+        .Options(ButtonOptions().Tooltip(
+            "Downloads a .zip with your saves, settings, presets, randomizer spoilers, etc., to back them up or move "
+            "them to another browser."));
+    AddWidget(path, "Import Data", WIDGET_BUTTON)
+        .RaceDisable(false)
+        .Callback([](WidgetInfo& info) { ShipWeb::ImportData(); })
+        .Options(ButtonOptions().Tooltip(
+            "Loads a .zip made with Export Data and reloads the game. Files in the zip replace the current ones; "
+            "anything not in it is kept, so a zip with just the Save folder only restores saves."));
 #endif
 
     AddWidget(path, "Boot", WIDGET_SEPARATOR_TEXT);

@@ -25,20 +25,28 @@ Module["preRun"] = [].concat(Module["preRun"] || [], () => {
 let shipSyncTimer = null;
 let shipSyncing = false;
 let shipSyncAgain = false;
+// Callbacks waiting for a sync that starts after they were queued.
+let shipSyncWaiters = [];
 
-function shipSaveData() {
+function shipSaveData(onSaved) {
     clearTimeout(shipSyncTimer);
     shipSyncTimer = null;
+    if (onSaved) {
+        shipSyncWaiters.push(onSaved);
+    }
     if (shipSyncing) {
         shipSyncAgain = true;
         return;
     }
     shipSyncing = true;
+    const waiters = shipSyncWaiters;
+    shipSyncWaiters = [];
     FS.syncfs(false, (err) => {
         shipSyncing = false;
         if (err) {
             console.warn("Couldn't save data to IndexedDB.", err);
         }
+        waiters.forEach((callback) => callback(err));
         if (shipSyncAgain) {
             shipSyncAgain = false;
             shipSaveData();
