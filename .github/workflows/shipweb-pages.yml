@@ -1,0 +1,63 @@
+# Builds ShipWeb (the web port) and publishes it with GitHub Pages.
+# The site has no game assets: each player provides their own ROM, which is extracted in their browser.
+name: shipweb-pages
+
+on:
+  push:
+    branches: [shipweb]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push replaces a pending one.
+concurrency:
+  group: shipweb-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.12
+
+      - name: Configure
+        run: emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build-web --target soh
+
+      - name: Prepare the site
+        run: |
+          mkdir site
+          cd build-web/soh
+          # The game page is the site's home page.
+          cp soh.html ../../site/index.html
+          cp soh.js soh.wasm soh.data extractor-worker.js soh-extractor.js soh-extractor.wasm ../../site/
+          cp -r yml ../../site/
+          ls -la ../../site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
