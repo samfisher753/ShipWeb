@@ -91,6 +91,13 @@ void PresetCheckboxStyle(const ImVec4& color) {
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 5.0f);
 }
 
+// Sections listed, saved and applied. The web build has no Network menu, so its section is left out there.
+#ifdef __EMSCRIPTEN__
+#define PRESET_SECTIONS_SHOWN PRESET_SECTION_NETWORK
+#else
+#define PRESET_SECTIONS_SHOWN PRESET_SECTION_MAX
+#endif
+
 static BlockInfo blockInfo[PRESET_SECTION_MAX] = {
     { { CVAR_PREFIX_SETTING, CVAR_PREFIX_WINDOW, CVAR_PREFIX_GAMEPLAY_STATS },
       ICON_FA_COG,
@@ -126,7 +133,7 @@ static SectionStrategy GetSectionStrategy(const PresetInfo& info, int section) {
 void applyPreset(std::string presetName, std::vector<PresetSection> includeSections) {
     auto& info = presets[presetName];
     bool randoApplied = false;
-    for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTION_MAX; i++) {
+    for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTIONS_SHOWN; i++) {
         if (info.apply[i] && info.presetValues["blocks"].contains(blockInfo[i].names[1])) {
             if (!includeSections.empty() && !SohUtils::Contains(i, includeSections)) {
                 continue;
@@ -193,7 +200,7 @@ nlohmann::json applyPresetToBlocks(std::string presetName, nlohmann::json blocks
     }
     auto& info = entry->second;
 
-    for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTION_MAX; i++) {
+    for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTIONS_SHOWN; i++) {
         if (!info.apply[i] || !info.presetValues["blocks"].contains(blockInfo[i].names[1])) {
             continue;
         }
@@ -334,7 +341,7 @@ void ParsePreset(nlohmann::json& json, std::string name) {
         if (json.contains("isBuiltIn")) {
             presets[json["presetName"]].isBuiltIn = json["isBuiltIn"];
         }
-        for (int i = 0; i < PRESET_SECTION_MAX; i++) {
+        for (int i = 0; i < PRESET_SECTIONS_SHOWN; i++) {
             if (presets[json["presetName"]].presetValues["blocks"].contains(blockInfo[i].names[1])) {
                 presets[json["presetName"]].apply[i] = true;
             }
@@ -423,7 +430,7 @@ void DrawEditPresetPopup() {
                                .HasError(nameExists));
     nameExists = presets.contains(newPresetName) && newPresetName != oldPresetName;
     bool noneSelected = true;
-    for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTION_MAX; i++) {
+    for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTIONS_SHOWN; i++) {
         if (saveSection[i]) {
             noneSelected = false;
             break;
@@ -432,7 +439,7 @@ void DrawEditPresetPopup() {
     const char* disabledTooltip =
         (newPresetName.empty() ? "Preset name is empty"
                                : (noneSelected ? "No sections selected" : "Preset name already exists"));
-    for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTION_MAX; i++) {
+    for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTIONS_SHOWN; i++) {
         UIWidgets::Checkbox(spdlog::fmt_lib::format("Save {}", blockInfo[i].names[0]).c_str(), &saveSection[i],
                             UIWidgets::CheckboxOptions().Color(THEME_COLOR).Padding({ 6.0f, 6.0f }));
     }
@@ -443,7 +450,7 @@ void DrawEditPresetPopup() {
                         .Color(THEME_COLOR))) {
         presets[newPresetName] = {};
         auto config = Ship::Context::GetRawInstance()->GetConfig()->GetNestedJson();
-        for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTION_MAX; i++) {
+        for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTIONS_SHOWN; i++) {
             if (saveSection[i]) {
                 for (size_t j = 0; j < blockInfo[i].sections.size(); j++) {
                     presets[newPresetName].presetValues["blocks"][blockInfo[i].names[1]][blockInfo[i].sections[j]] =
@@ -537,9 +544,9 @@ void PresetsCustomWidget(WidgetInfo& info) {
                             UIWidgets::CheckboxOptions().Color(THEME_COLOR));
     bool hideBuiltIn = CVarGetInteger(CVAR_GENERAL("HideBuiltInPresets"), 0);
     UIWidgets::PushStyleTabs(THEME_COLOR);
-    if (ImGui::BeginTable("PresetWidgetTable", PRESET_SECTION_MAX + 4)) {
+    if (ImGui::BeginTable("PresetWidgetTable", PRESET_SECTIONS_SHOWN + 4)) {
         ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed, 400);
-        for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTION_MAX; i++) {
+        for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTIONS_SHOWN; i++) {
             ImGui::TableSetupColumn(blockInfo[i].names[0].c_str());
         }
         ImGui::TableSetupColumn("Apply", ImGuiTableColumnFlags_WidthFixed,
@@ -551,7 +558,7 @@ void PresetsCustomWidget(WidgetInfo& info) {
         BlankButton();
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTION_MAX; i++) {
+        for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTIONS_SHOWN; i++) {
             ImGui::TableNextColumn();
             ImGui::Button(spdlog::fmt_lib::format("{}##header{}", blockInfo[i].icon, blockInfo[i].names[1]).c_str());
             UIWidgets::Tooltip(blockInfo[i].names[0].c_str());
@@ -576,7 +583,7 @@ void PresetsCustomWidget(WidgetInfo& info) {
             ImGui::TableNextColumn();
             ImGui::AlignTextToFramePadding();
             ImGui::Text("%s", name.c_str());
-            for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTION_MAX; i++) {
+            for (int i = PRESET_SECTION_SETTINGS; i < PRESET_SECTIONS_SHOWN; i++) {
                 ImGui::TableNextColumn();
                 DrawSectionCheck(name, !info.presetValues["blocks"].contains(blockInfo[i].names[1]), &info.apply[i],
                                  blockInfo[i].names[1]);
