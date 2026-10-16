@@ -5,6 +5,9 @@ name: shipweb-pages
 on:
   push:
     branches: [shipweb]
+    # The build takes ~30 minutes; documentation changes don't affect the site.
+    paths-ignore:
+      - "**.md"
   workflow_dispatch:
 
 permissions:
@@ -20,6 +23,13 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    env:
+      # Emscripten's cache of built system libraries and ports (SDL2, zlib...), kept between runs below.
+      EM_CACHE: ${{ github.workspace }}/.emscripten-cache
+      # Emscripten runs clang through ccache, so unchanged files aren't compiled again.
+      EM_COMPILER_WRAPPER: ccache
+      # emsdk is installed fresh each run, so identify the compiler by its (pinned) version, not the file's date.
+      CCACHE_COMPILERCHECK: "string:emscripten-6.0.12"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,15 +38,29 @@ jobs:
       - name: Install Ninja
         run: sudo apt-get update && sudo apt-get install -y ninja-build
 
+      # Installs ccache and keeps its cache between runs (it's saved at the end of the job).
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: shipweb-pages
+          max-size: 2G
+
       - uses: mymindstorm/setup-emsdk@v14
         with:
           version: 6.0.12
+
+      - uses: actions/cache@v4
+        with:
+          path: .emscripten-cache
+          key: emscripten-cache-6.0.12-${{ github.sha }}
+          restore-keys: emscripten-cache-6.0.12-
 
       - name: Configure
         run: emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build-web --target soh
+        run: |
+          cmake --build build-web --target soh
+          ccache --show-stats
 
       - name: Prepare the site
         run: |
