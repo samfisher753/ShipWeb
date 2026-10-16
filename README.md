@@ -2,6 +2,8 @@
 
 **An unofficial web port of [Ship of Harkinian](https://github.com/HarbourMasters/Shipwright): play Ocarina of Time in your browser.**
 
+### ▶ [Play ShipWeb](https://samfisher753.github.io/ShipWeb/)
+
 ShipWeb is Ship of Harkinian, the PC port of *The Legend of Zelda: Ocarina of Time* by [HarbourMasters](https://github.com/HarbourMasters), compiled to WebAssembly with a few changes so it runs in a web browser. Nearly all of the work is theirs: the game, the enhancements, the randomizer, the menus and the engine.
 
 > [!IMPORTANT]
@@ -33,7 +35,7 @@ ShipWeb doesn't include any copyrighted assets. You need your own, legally obtai
 
 ## Hosting
 
-The build is a static website: serve the contents of the output folder (see below) with any web server or static hosting. A few notes:
+The build is a static website: serve the contents of the output folder (see below) with any web server or static hosting. This repository publishes it with GitHub Pages: [`shipweb-pages.yml`](.github/workflows/shipweb-pages.yml) builds and deploys every push to the `shipweb` branch. A few notes:
 
 * Some files are large (`soh.wasm` is ~28 MB), so check the per-file size limit of free hosting services.
 * Serve `.wasm` files as `application/wasm` so they start faster.
