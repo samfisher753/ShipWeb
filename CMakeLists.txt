@@ -390,20 +390,41 @@ add_custom_target(
 file(GLOB_RECURSE SOH_O2R_ASSETS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/soh/assets/custom/*)
 list(FILTER SOH_O2R_ASSETS EXCLUDE REGEX "/soh/assets/custom/shaders/")
 file(GLOB_RECURSE SOH_O2R_SHADERS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/fast/shaders/*)
+# The packer writes soh.o2r to the build dir, which is then copied to the source dir.
+set(SOH_O2R_PACKER_COMMAND $<TARGET_FILE:soh-o2r-packer>)
+set(SOH_O2R_PACKER_DIR ${CMAKE_BINARY_DIR})
+set(SOH_O2R_PACKER_ASSETS ${CMAKE_CURRENT_SOURCE_DIR}/soh/assets/custom)
+set(SOH_O2R_PACKER_OUTPUT ${CMAKE_BINARY_DIR}/soh/soh.o2r)
+set(SOH_O2R_COPY_FROM ${CMAKE_BINARY_DIR}/soh/soh.o2r)
+set(SOH_O2R_COPY_TO ${CMAKE_SOURCE_DIR}/soh.o2r)
+if(EMSCRIPTEN)
+    # The web build runs the packer with node (emsdk's), straight on the real file system. Emscripten paths are
+    # POSIX-style: absolute Windows paths and ../ (resolved against the Windows working dir) don't work, so it runs
+    # from the source dir with plain relative paths, and soh.o2r is copied the other way round.
+    set_target_properties(soh-o2r-packer PROPERTIES SUFFIX ".js")
+    target_link_options(soh-o2r-packer PRIVATE "SHELL:-s NODERAWFS=1" "SHELL:-s ENVIRONMENT=node")
+    set(SOH_O2R_PACKER_COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} $<TARGET_FILE:soh-o2r-packer>)
+    set(SOH_O2R_PACKER_DIR ${CMAKE_SOURCE_DIR})
+    set(SOH_O2R_PACKER_ASSETS soh/assets/custom)
+    set(SOH_O2R_PACKER_OUTPUT soh.o2r)
+    set(SOH_O2R_COPY_FROM ${CMAKE_SOURCE_DIR}/soh.o2r)
+    set(SOH_O2R_COPY_TO ${CMAKE_BINARY_DIR}/soh/soh.o2r)
+endif()
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/soh/soh.o2r
     # copy LUS default shaders into assets/custom
     COMMAND ${CMAKE_COMMAND} -E rm -r -f ${CMAKE_CURRENT_SOURCE_DIR}/soh/assets/custom/shaders/
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/fast/shaders/ ${CMAKE_CURRENT_SOURCE_DIR}/soh/assets/custom/shaders/
 
-    COMMAND $<TARGET_FILE:soh-o2r-packer>
-            ${CMAKE_CURRENT_SOURCE_DIR}/soh/assets/custom
-            ${CMAKE_BINARY_DIR}/soh/soh.o2r
+    COMMAND ${SOH_O2R_PACKER_COMMAND}
+            ${SOH_O2R_PACKER_ASSETS}
+            ${SOH_O2R_PACKER_OUTPUT}
             ${CMAKE_PROJECT_VERSION}
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_BINARY_DIR}/soh/soh.o2r ${CMAKE_CURRENT_SOURCE_DIR}/soh.o2r
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SOH_O2R_COPY_FROM} ${SOH_O2R_COPY_TO}
     COMMENT "Generating soh.o2r..."
     DEPENDS soh-o2r-packer ${SOH_O2R_ASSETS} ${SOH_O2R_SHADERS}
     BYPRODUCTS ${CMAKE_SOURCE_DIR}/soh.o2r
+    WORKING_DIRECTORY ${SOH_O2R_PACKER_DIR}
     VERBATIM
 )
 add_custom_target(GenerateSohOtr ALL DEPENDS ${CMAKE_BINARY_DIR}/soh/soh.o2r)

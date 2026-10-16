@@ -760,9 +760,21 @@ endif()
 
 
 if(EMSCRIPTEN)
+    # Everything in this folder is bundled into soh.data: the generated soh.o2r and the controller database are copied
+    # in before linking. Files put there by hand are bundled too (e.g. an oot.o2r, to skip the ROM screen while
+    # developing).
+    set(SHIPWEB_PRELOAD_DIR ${CMAKE_BINARY_DIR}/preload)
+    file(MAKE_DIRECTORY ${SHIPWEB_PRELOAD_DIR})
+    add_dependencies(soh GenerateSohOtr)
+    add_custom_command(TARGET soh PRE_LINK
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_BINARY_DIR}/soh/soh.o2r ${CMAKE_BINARY_DIR}/gamecontrollerdb.txt ${SHIPWEB_PRELOAD_DIR}
+        VERBATIM
+    )
+
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/web/version.js.in ${CMAKE_CURRENT_BINARY_DIR}/web/version.js @ONLY)
     target_link_options(soh PRIVATE
-        "SHELL:--preload-file ${CMAKE_BINARY_DIR}/preload@/"
+        "SHELL:--preload-file ${SHIPWEB_PRELOAD_DIR}@/"
         "SHELL:--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
         "SHELL:--pre-js ${CMAKE_CURRENT_BINARY_DIR}/web/version.js"
         "SHELL:--pre-js ${CMAKE_CURRENT_SOURCE_DIR}/web/persistence.js"
@@ -772,6 +784,7 @@ if(EMSCRIPTEN)
     # The page runs the ROM extractor (root CMakeLists) when there are no extracted assets yet.
     add_dependencies(soh soh-extractor)
     set_property(TARGET soh APPEND PROPERTY LINK_DEPENDS
+        ${CMAKE_BINARY_DIR}/soh/soh.o2r
         ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html
         ${CMAKE_CURRENT_BINARY_DIR}/web/version.js
         ${CMAKE_CURRENT_SOURCE_DIR}/web/persistence.js

@@ -63,7 +63,7 @@ EM_JS(void, shipweb_pick_import_file, (const char* path), {
         const imported = _ShipWeb_ImportZip();
         FS.unlink(zipPath);
         if (imported < 0) {
-            alert("\"" + file.name + "\" isn't a valid Ship of Harkinian data file. Nothing was changed.");
+            alert("\"" + file.name + "\" isn't a valid ShipWeb data file. Nothing was changed.");
             resumeAudio();
             return;
         }

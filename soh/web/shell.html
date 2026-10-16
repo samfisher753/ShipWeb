@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Ship of Harkinian</title>
+    <title>ShipWeb</title>
     <style>
         :root {
             --bg: #07090f;
@@ -62,13 +62,11 @@
             letter-spacing: 0.04em;
         }
 
-        #loader h1 small {
-            margin-left: 6px;
+        #loader .subtitle {
+            margin: -8px 0 4px;
             font-size: 13px;
-            font-weight: 500;
-            color: var(--accent);
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
+            color: var(--muted);
+            text-align: center;
         }
 
         #progress {
@@ -259,7 +257,8 @@
     <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
 
     <div id="loader">
-        <h1>Ship of Harkinian<small>Web</small></h1>
+        <h1>ShipWeb</h1>
+        <div class="subtitle">Unofficial web port of Ship of Harkinian</div>
         <div id="progress"><div id="progress-bar"></div></div>
         <div id="status">Downloading…</div>
 
@@ -267,8 +266,8 @@
             <div id="rom-intro">
                 <h2 id="rom-title">Choose your Ocarina of Time ROM</h2>
                 <p id="rom-description">
-                    Ship of Harkinian doesn't include any of the original game. It builds the game's graphics, sounds
-                    and text from your own ROM dump. This is only needed once; afterwards the game starts directly.
+                    ShipWeb doesn't include any of the original game. It builds the game's graphics, sounds and text
+                    from your own ROM dump. This is only needed once; afterwards the game starts directly.
                 </p>
             </div>
 
@@ -363,7 +362,7 @@
                         return item;
                     }));
                     if (updated) {
-                        document.getElementById("rom-title").textContent = "Ship of Harkinian was updated";
+                        document.getElementById("rom-title").textContent = "ShipWeb was updated";
                         document.getElementById("rom-description").textContent =
                             "The game data needs to be built again from your ROM for this version. Your saves and " +
                             "settings are kept.";
@@ -414,7 +413,7 @@
                 canvas.focus();
             },
             onAbort(what) {
-                showError("Ship of Harkinian stopped unexpectedly: " + what);
+                showError("ShipWeb stopped unexpectedly: " + what);
             },
         };
 
